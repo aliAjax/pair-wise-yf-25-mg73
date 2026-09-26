@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>主席工作台</title>
+<style>body{font:16px system-ui;max-width:900px;margin:32px auto;padding:0 16px}input,textarea,select,button{font:inherit;padding:8px;margin:4px}textarea{width:100%;height:90px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{border:1px solid #bbb;padding:16px;border-radius:8px}pre{white-space:pre-wrap;background:#f4f4f4;padding:12px}</style></head>
+<body><h1>主席工作台</h1><p>固定以 <code>chair</code> 身份调用 API。登记冲突会自动撤评：待回应邀请取消、已接受或完成的分配失效并释放负载，原意见仅保留在历史中，不计入决定。有效完成意见不足两份时需补位。<a href="/">返回提交页</a></p>
+<div class="grid">
+<section class="panel"><h2>登记利益冲突（自动撤评）</h2><input id="cPaper" placeholder="论文 ID"><input id="cReviewer" placeholder="评审人 ID（如 r1）"><input id="cReason" placeholder="冲突原因"><button onclick="addConflict()">登记</button><pre id="conflictOut"></pre></section>
+<section class="panel"><h2>邀请评审人（补位）</h2><input id="aPaper" placeholder="论文 ID"><input id="aReviewer" placeholder="评审人 ID"><button onclick="invite()">邀请</button><pre id="inviteOut"></pre></section>
+<section class="panel"><h2>论文分配与有效意见数</h2><input id="pPaper" placeholder="论文 ID"><button onclick="loadAssignments()">查看</button><pre id="assignmentsOut"></pre></section>
+<section class="panel"><h2>评审人负载统计</h2><button onclick="loadLoads()">刷新</button><pre id="loadsOut"></pre></section>
+<section class="panel"><h2>作出决定（需两份有效完成意见）</h2><input id="dPaper" placeholder="论文 ID"><select id="dDecision"><option>accept</option><option>reject</option><option>minor_revision</option><option>major_revision</option></select><input id="dNote" placeholder="备注"><button onclick="decide()">提交决定</button><pre id="decisionOut"></pre></section>
+<section class="panel"><h2>审计历史</h2><input id="hPaper" placeholder="论文 ID"><button onclick="loadHistory()">查看</button><pre id="historyOut"></pre></section>
+</div>
+<script>
+const headers={"Content-Type":"application/json","X-User-Id":"chair"};
+async function api(url,opt={}){const r=await fetch(url,{...opt,headers});const j=await r.json();if(!r.ok)throw new Error(j.error.message);return j}
+async function show(out,fn){try{out.textContent=JSON.stringify(await fn(),null,2)}catch(e){out.textContent="错误："+e.message}}
+async function addConflict(){await show(conflictOut,()=>api(`/api/papers/${cPaper.value}/conflicts`,{method:"POST",body:JSON.stringify({reviewer_id:cReviewer.value,reason:cReason.value})}))}
+async function invite(){await show(inviteOut,()=>api(`/api/papers/${aPaper.value}/assignments`,{method:"POST",body:JSON.stringify({reviewer_id:aReviewer.value})}))}
+async function loadAssignments(){await show(assignmentsOut,()=>api(`/api/papers/${pPaper.value}/assignments`))}
+async function loadLoads(){await show(loadsOut,()=>api("/api/reviewers/load"))}
+async function decide(){await show(decisionOut,()=>api(`/api/papers/${dPaper.value}/decision`,{method:"POST",body:JSON.stringify({decision:dDecision.value,note:dNote.value})}))}
+async function loadHistory(){await show(historyOut,()=>api(`/api/papers/${hPaper.value}/history`))}
+</script></body></html>
