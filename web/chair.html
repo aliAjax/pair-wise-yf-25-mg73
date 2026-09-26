@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>主席工作台 · 学术会议同行评审</title>
+<style>body{font:16px system-ui;max-width:1000px;margin:32px auto;padding:0 16px}input,textarea,select,button{font:inherit;padding:8px;margin:4px}textarea{width:100%;height:70px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{border:1px solid #bbb;padding:16px;border-radius:8px}pre{white-space:pre-wrap;background:#f4f4f4;padding:12px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left}.badge{padding:2px 8px;border-radius:10px;font-size:13px}.cancelled,.invalid{background:#f8d7da}.completed{background:#d4edda}.invited{background:#fff3cd}.accepted{background:#d1ecf1}.declined{background:#e2e3e5}</style></head>
+<body><h1>主席工作台</h1>
+<p>身份固定使用 <code>chair</code> 调用接口。<a href="/">返回作者/评审人页面</a>。登记利益冲突后，待回应邀请会自动取消，已接受或已完成的分配转为无效并释放负载；原意见保留在历史中但不进入决定。</p>
+
+<div class="grid">
+<section class="panel"><h2>登记冲突（冲突撤评）</h2>
+<input id="cPaper" placeholder="论文ID" size="8"><input id="cReviewer" placeholder="评审人，如 r1" size="10"><input id="cReason" placeholder="冲突原因">
+<button onclick="registerConflict()">登记冲突</button></section>
+
+<section class="panel"><h2>邀请评审 / 作决定</h2>
+<input id="aPaper" placeholder="论文ID" size="8"><input id="aReviewer" placeholder="评审人，如 r2" size="10"><button onclick="invite()">邀请</button><br>
+<input id="dPaper" placeholder="论文ID" size="8">
+<select id="dDecision"><option value="accept">accept</option><option value="reject">reject</option><option value="minor_revision" selected>minor_revision</option><option value="major_revision">major_revision</option></select>
+<input id="dNote" placeholder="备注（可选）"><button onclick="decide()">作决定（需两份有效完成意见）</button></section>
+</div>
+
+<section class="panel"><h2>评审人负载统计</h2><button onclick="loadLoads()">刷新负载</button>
+<table><thead><tr><th>评审人</th><th>在途分配</th><th>上限</th><th>剩余</th></tr></thead><tbody id="loads"></tbody></table></section>
+
+<section class="panel"><h2>论文与分配概况</h2><button onclick="loadOverview()">刷新概况</button><div id="overview"></div></section>
+
+<script>
+const headers={"Content-Type":"application/json","X-User-Id":"chair"};
+async function api(url,opt={}){const r=await fetch(url,{...opt,headers});return await r.json()}
+async function registerConflict(){
+  const p=await api(`/api/papers/${cPaper.value}/conflicts`,{method:"POST",body:JSON.stringify({reviewer_id:cReviewer.value,reason:cReason.value})});
+  alert(JSON.stringify(p,null,2));loadOverview();loadLoads();
+}
+async function invite(){alert(JSON.stringify(await api(`/api/papers/${aPaper.value}/assignments`,{method:"POST",body:JSON.stringify({reviewer_id:aReviewer.value})}),null,2));loadOverview();loadLoads()}
+async function decide(){alert(JSON.stringify(await api(`/api/papers/${dPaper.value}/decision`,{method:"POST",body:JSON.stringify({decision:dDecision.value,note:dNote.value})}),null,2));loadOverview()}
+async function loadLoads(){
+  const d=await api("/api/chair/reviewer-loads");
+  loads.innerHTML=(d.items||[]).map(r=>`<tr><td>${r.reviewer_id}（${r.name}）</td><td>${r.active_load}</td><td>${r.load_limit}</td><td>${r.remaining}</td></tr>`).join("");
+}
+function assignmentRows(a){
+  return a.map(x=>`<tr><td>${x.id}</td><td>${x.reviewer_id}</td><td><span class="badge ${x.status}">${x.status}</span></td><td>${x.score??""}</td></tr>`).join("");
+}
+async function loadOverview(){
+  const d=await api("/api/chair/overview");
+  overview.innerHTML=(d.items||[]).map(p=>`
+    <h3>#${p.paper_id} ${p.title} <small>状态：${p.status}｜作者：${p.author_id}｜有效完成意见：${p.valid_completed_reviews}/2</small></h3>
+    <p>冲突评审人：${p.conflict_reviewer_ids.length?p.conflict_reviewer_ids.join("、"):"无"}</p>
+    <table><thead><tr><th>分配ID</th><th>评审人</th><th>状态</th><th>分数</th></tr></thead><tbody>${assignmentRows(p.assignments)}</tbody></table>`).join("");
+}
+loadLoads();loadOverview();
+</script></body></html>
